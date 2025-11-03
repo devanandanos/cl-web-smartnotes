@@ -1,1 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zen Notes</title>
+<style>
+:root {
+  --bg-light: #fafafa;
+  --bg-dark: #0f0f0f;
+  --card-light: #ffffff;
+  --card-dark: #1b1b1b;
+  --text-light: #1a1a1a;
+  --text-dark: #f5f5f5;
+  --accent: #4f46e5;
+}
 
+body {
+  font-family: "Inter", sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-dark);
+  transition: background 0.3s ease, color 0.3s ease;
+  padding: 2rem;
+  max-width: 900px;
+  margin: auto;
+}
+
+body.light-mode {
+  background: var(--bg-light);
+  color: var(--text-light);
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+input[type="text"], textarea {
+  background: #2a2a2a;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  max-width: 250px;
+  outline: none;
+}
+
+body.light-mode input[type="text"], body.light-mode textarea {
+  background: #f2f2f2;
+  color: #000;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+button:hover { opacity: 0.85; }
+
+.notes-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.note-card {
+  background: var(--card-dark);
+  color: var(--text-dark);
+  padding: 1rem;
+  border-radius: 0.8rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease;
+  position: relative;
+}
+body.light-mode .note-card { background: var(--card-light); color: var(--text-light); }
+
+.note-card:hover { transform: translateY(-3px); }
+
+.note-card .title { font-weight: 600; font-size: 1.1rem; margin-bottom: 0.4rem; }
+.note-card .summary { font-size: 0.9rem; opacity: 0.8; }
+.note-card .tags { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tag {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.note-card .actions {
+  margin-top: 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.highlight {
+  background: yellow;
+  color: black;
+  font-weight: bold;
+}
+
+footer {
+  text-align: center;
+  opacity: 0.6;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+</style>
+</head>
+<body>
+
+<h1>🧘 Zen Notes</h1>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Search notes...">
+  <button id="addNoteBtn">+ Add Note</button>
+  <button id="sortBtn">Sort: Newest</button>
+  <button id="themeToggle">Toggle Theme</button>
+</div>
+
+<div class="notes-container" id="notesContainer"></div>
+
+<footer>No frameworks. Just you & Vanilla JS 🍃</footer>
+
+<script>
+let notes = JSON.parse(localStorage.getItem("notes") || "[]");
+let sortNewest = true;
+const container = document.getElementById("notesContainer");
+const searchInput = document.getElementById("search");
+
+function saveNotes() {
+  localStorage.setItem("notes", JSON.stringify(notes));
+  renderNotes();
+}
+
+function mockSummary(text) {
+  return text.split(" ").slice(0, 15).join(" ") + (text.split(" ").length > 15 ? "..." : "");
+}
+
+function mockTags(text) {
+  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+  const uniq = [...new Set(words)];
+  return uniq.slice(0, 3);
+}
+
+function mockMood(text) {
+  if (text.match(/happy|great|good|love/i)) return "😊";
+  if (text.match(/sad|bad|angry|upset/i)) return "😢";
+  return "😐";
+}
+
+function renderNotes() {
+  container.innerHTML = "";
+  let filtered = notes.filter(n =>
+    n.title.toLowerCase().includes(searchInput.value.toLowerCase()) ||
+    n.content.toLowerCase().includes(searchInput.value.toLowerCase())
+  );
+
+  filtered.sort((a,b)=> sortNewest ? b.id - a.id : a.id - b.id);
+
+  filtered.forEach(note => {
+    const div = document.createElement("div");
+    div.className = "note-card";
+
+    // Highlight matches
+    let title = note.title.replace(new RegExp(searchInput.value,"ig"), m => `<span class="highlight">${m}</span>`);
+    let content = note.summary.replace(new RegExp(searchInput.value,"ig"), m => `<span class="highlight">${m}</span>`);
+
+    div.innerHTML = `
+      <div class="title">${note.pinned ? "📌 " : ""}${title}</div>
+      <div class="summary">${content}</div>
+      <div class="tags">${note.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+      <div class="actions">
+        <span>${note.mood}</span>
+        <div>
+          <button onclick="editNote(${note.id})">Edit</button>
+          <button onclick="deleteNote(${note.id})">Del</button>
+          <button onclick="togglePin(${note.id})">${note.pinned ? "Unpin" : "Pin"}</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+
+  if (!filtered.length) container.innerHTML = "<p style='text-align:center;opacity:0.6;'>No notes yet.</p>";
+}
+
+function addNote() {
+  const title = prompt("Enter note title:");
+  if (!title) return;
+  const content = prompt("Enter note content:");
+  if (!content) return;
+
+  const newNote = {
+    id: Date.now(),
+    title,
+    content,
+    summary: mockSummary(content),
+    tags: mockTags(content),
+    mood: mockMood(content),
+    pinned: false
+  };
+  notes.push(newNote);
+  saveNotes();
+}
+
+function editNote(id) {
+  const note = notes.find(n => n.id === id);
+  const newTitle = prompt("Edit title:", note.title);
+  const newContent = prompt("Edit content:", note.content);
+  if (newTitle !== null) note.title = newTitle;
+  if (newContent !== null) {
+    note.content = newContent;
+    note.summary = mockSummary(newContent);
+    note.tags = mockTags(newContent);
+    note.mood = mockMood(newContent);
+  }
+  saveNotes();
+}
+
+function deleteNote(id) {
+  notes = notes.filter(n => n.id !== id);
+  saveNotes();
+}
+
+function togglePin(id) {
+  const note = notes.find(n => n.id === id);
+  note.pinned = !note.pinned;
+  notes.sort((a,b) => (b.pinned - a.pinned) || (sortNewest ? b.id - a.id : a.id - b.id));
+  saveNotes();
+}
+
+document.getElementById("addNoteBtn").onclick = addNote;
+document.getElementById("sortBtn").onclick = () => {
+  sortNewest = !sortNewest;
+  document.getElementById("sortBtn").innerText = sortNewest ? "Sort: Newest" : "Sort: Oldest";
+  renderNotes();
+};
+document.getElementById("themeToggle").onclick = () => {
+  document.body.classList.toggle("light-mode");
+  localStorage.setItem("theme", document.body.classList.contains("light-mode") ? "light" : "dark");
+};
+searchInput.addEventListener("input", renderNotes);
+
+if (localStorage.getItem("theme") === "light") document.body.classList.add("light-mode");
+
+renderNotes();
+</script>
+</body>
+</html>
